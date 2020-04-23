@@ -44,6 +44,12 @@ type rtuPackager struct {
 	SlaveId byte
 }
 
+func NewRtuPackager(slaveId byte) Packager {
+	return &rtuPackager{
+		SlaveId: slaveId,
+	}
+}
+
 // Encode encodes PDU in a RTU frame:
 //  Slave Address   : 1 byte
 //  Function        : 1 byte
@@ -108,6 +114,10 @@ func (mb *rtuPackager) Decode(adu []byte) (pdu *ProtocolDataUnit, err error) {
 // rtuSerialTransporter implements Transporter interface.
 type rtuSerialTransporter struct {
 	serialPort
+}
+
+type RtuSerialTransporter struct {
+	rtuSerialTransporter
 }
 
 func (mb *rtuSerialTransporter) Send(aduRequest []byte) (aduResponse []byte, err error) {
