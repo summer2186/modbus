@@ -150,6 +150,10 @@ type tcpTransporter struct {
 	lastActivity time.Time
 }
 
+type TcpTransporter struct {
+	tcpTransporter
+}
+
 // Send sends data to server and ensures response length is greater than header length.
 func (mb *tcpTransporter) Send(aduRequest []byte) (aduResponse []byte, err error) {
 	mb.mu.Lock()
