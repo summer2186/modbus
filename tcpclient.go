@@ -55,6 +55,12 @@ type tcpPackager struct {
 	SlaveId byte
 }
 
+func NewTcpPackager(slaveId byte) Packager {
+	return &tcpPackager{
+		SlaveId: slaveId,
+	}
+}
+
 // Encode adds modbus application protocol header:
 //  Transaction identifier: 2 bytes
 //  Protocol identifier: 2 bytes
