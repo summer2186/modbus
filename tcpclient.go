@@ -61,6 +61,10 @@ func NewTcpPackager(slaveId byte) Packager {
 	}
 }
 
+func (mb *tcpPackager) GetSlaveId() byte {
+	return mb.SlaveId
+}
+
 // Encode adds modbus application protocol header:
 //  Transaction identifier: 2 bytes
 //  Protocol identifier: 2 bytes

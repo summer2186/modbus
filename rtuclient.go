@@ -50,6 +50,10 @@ func NewRtuPackager(slaveId byte) Packager {
 	}
 }
 
+func (mb *rtuPackager) GetSlaveId() byte {
+	return mb.SlaveId
+}
+
 // Encode encodes PDU in a RTU frame:
 //  Slave Address   : 1 byte
 //  Function        : 1 byte

@@ -15,9 +15,18 @@ type ClientHandler interface {
 	Transporter
 }
 
+type (
+	TxCallbackHandler func(slaveId byte, functionCode byte, txData []byte, rxData []byte, err error)
+)
+
+type ClientOptions struct {
+	TxCallbackHandler TxCallbackHandler
+}
+
 type client struct {
 	packager    Packager
 	transporter Transporter
+	options     ClientOptions
 }
 
 // NewClient creates a new modbus client with given backend handler.
@@ -28,6 +37,14 @@ func NewClient(handler ClientHandler) Client {
 // NewClient2 creates a new modbus client with given backend packager and transporter.
 func NewClient2(packager Packager, transporter Transporter) Client {
 	return &client{packager: packager, transporter: transporter}
+}
+
+func NewClient3(packager Packager, transporter Transporter, options *ClientOptions) Client {
+	if options == nil {
+		options = &ClientOptions{} // default
+	}
+
+	return &client{packager: packager, transporter: transporter, options: *options}
 }
 
 // Request:
@@ -441,9 +458,13 @@ func (mb *client) send(request *ProtocolDataUnit) (response *ProtocolDataUnit, e
 		return
 	}
 	aduResponse, err := mb.transporter.Send(aduRequest)
+	if mb.options.TxCallbackHandler != nil {
+		mb.options.TxCallbackHandler(mb.packager.GetSlaveId(), request.FunctionCode, aduRequest, aduResponse, err)
+	}
 	if err != nil {
 		return
 	}
+
 	if err = mb.packager.Verify(aduRequest, aduResponse); err != nil {
 		return
 	}
