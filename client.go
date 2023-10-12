@@ -16,11 +16,15 @@ type ClientHandler interface {
 }
 
 type (
-	TxCallbackHandler func(slaveId byte, functionCode byte, txData []byte, rxData []byte, err error)
+	TxRxCallbackHandler func(slaveId byte, functionCode byte, txData []byte, rxData []byte, err error)
+	TxCallbackHandler   func(slaveId byte, functionCode byte, data []byte, err error)
+	RxCallbackHandler   func(slaveId byte, functionCode byte, data []byte, err error)
 )
 
 type ClientOptions struct {
-	TxCallbackHandler TxCallbackHandler
+	TxRxCallbackHandler TxRxCallbackHandler
+	TxCallbackHandler   TxCallbackHandler
+	RxCallbackHandler   RxCallbackHandler
 }
 
 type client struct {
@@ -47,6 +51,7 @@ func NewClient3(packager Packager, transporter Transporter, options *ClientOptio
 	return &client{packager: packager, transporter: transporter, options: *options}
 }
 
+// ReadCoils
 // Request:
 //  Function code         : 1 byte (0x01)
 //  Starting address      : 2 bytes
@@ -78,6 +83,7 @@ func (mb *client) ReadCoils(address, quantity uint16) (results []byte, err error
 	return
 }
 
+// ReadDiscreteInputs
 // Request:
 //  Function code         : 1 byte (0x02)
 //  Starting address      : 2 bytes
@@ -109,6 +115,7 @@ func (mb *client) ReadDiscreteInputs(address, quantity uint16) (results []byte, 
 	return
 }
 
+// ReadHoldingRegisters
 // Request:
 //  Function code         : 1 byte (0x03)
 //  Starting address      : 2 bytes
@@ -140,6 +147,7 @@ func (mb *client) ReadHoldingRegisters(address, quantity uint16) (results []byte
 	return
 }
 
+// ReadInputRegisters
 // Request:
 //  Function code         : 1 byte (0x04)
 //  Starting address      : 2 bytes
@@ -171,6 +179,7 @@ func (mb *client) ReadInputRegisters(address, quantity uint16) (results []byte, 
 	return
 }
 
+// WriteSingleCoil
 // Request:
 //  Function code         : 1 byte (0x05)
 //  Output address        : 2 bytes
@@ -212,6 +221,7 @@ func (mb *client) WriteSingleCoil(address, value uint16) (results []byte, err er
 	return
 }
 
+// WriteSingleRegister
 // Request:
 //  Function code         : 1 byte (0x06)
 //  Register address      : 2 bytes
@@ -248,6 +258,7 @@ func (mb *client) WriteSingleRegister(address, value uint16) (results []byte, er
 	return
 }
 
+// WriteMultipleCoils
 // Request:
 //  Function code         : 1 byte (0x0F)
 //  Starting address      : 2 bytes
@@ -290,6 +301,7 @@ func (mb *client) WriteMultipleCoils(address, quantity uint16, value []byte) (re
 	return
 }
 
+// WriteMultipleRegisters
 // Request:
 //  Function code         : 1 byte (0x10)
 //  Starting address      : 2 bytes
@@ -332,6 +344,7 @@ func (mb *client) WriteMultipleRegisters(address, quantity uint16, value []byte)
 	return
 }
 
+// MaskWriteRegister
 // Request:
 //  Function code         : 1 byte (0x16)
 //  Reference address     : 2 bytes
@@ -375,6 +388,7 @@ func (mb *client) MaskWriteRegister(address, andMask, orMask uint16) (results []
 	return
 }
 
+// ReadWriteMultipleRegisters
 // Request:
 //  Function code         : 1 byte (0x17)
 //  Read starting address : 2 bytes
@@ -413,6 +427,7 @@ func (mb *client) ReadWriteMultipleRegisters(readAddress, readQuantity, writeAdd
 	return
 }
 
+// ReadFIFOQueue
 // Request:
 //  Function code         : 1 byte (0x18)
 //  FIFO pointer address  : 2 bytes
@@ -457,10 +472,21 @@ func (mb *client) send(request *ProtocolDataUnit) (response *ProtocolDataUnit, e
 	if err != nil {
 		return
 	}
-	aduResponse, err := mb.transporter.Send(aduRequest)
+
 	if mb.options.TxCallbackHandler != nil {
-		mb.options.TxCallbackHandler(mb.packager.GetSlaveId(), request.FunctionCode, aduRequest, aduResponse, err)
+		mb.options.TxCallbackHandler(mb.packager.GetSlaveId(), request.FunctionCode, aduRequest, nil)
 	}
+
+	aduResponse, err := mb.transporter.Send(aduRequest)
+
+	if mb.options.RxCallbackHandler != nil {
+		mb.options.RxCallbackHandler(mb.packager.GetSlaveId(), request.FunctionCode, aduResponse, err)
+	}
+
+	if mb.options.TxRxCallbackHandler != nil {
+		mb.options.TxRxCallbackHandler(mb.packager.GetSlaveId(), request.FunctionCode, aduRequest, aduResponse, err)
+	}
+
 	if err != nil {
 		return
 	}
