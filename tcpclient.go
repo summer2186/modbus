@@ -5,6 +5,7 @@
 package modbus
 
 import (
+	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -47,6 +48,26 @@ func TCPClient(address string) Client {
 	return NewClient(handler)
 }
 
+// NewTlsClientHandler allocates a TCPClientHandler configured to dial over
+// TLS using the supplied TlsConfig. It reuses the TCPClientHandler type and
+// only sets the TLS field, so all packager/transporter behaviour is shared
+// with the plain-TCP path.
+func NewTlsClientHandler(address string, tlsConfig *TlsConfig) *TCPClientHandler {
+	h := &TCPClientHandler{}
+	h.Address = address
+	h.Timeout = tcpTimeout
+	h.IdleTimeout = tcpIdleTimeout
+	h.TLS = tlsConfig
+	return h
+}
+
+// TlsClient creates a TLS-wrapped TCP client with the default handler and the
+// given connect string plus TLS configuration.
+func TlsClient(address string, tlsConfig *TlsConfig) Client {
+	handler := NewTlsClientHandler(address, tlsConfig)
+	return NewClient(handler)
+}
+
 // tcpPackager implements Packager interface.
 type tcpPackager struct {
 	// For synchronization between messages of server & client
@@ -66,12 +87,13 @@ func (mb *tcpPackager) GetSlaveId() byte {
 }
 
 // Encode adds modbus application protocol header:
-//  Transaction identifier: 2 bytes
-//  Protocol identifier: 2 bytes
-//  Length: 2 bytes
-//  Unit identifier: 1 byte
-//  Function code: 1 byte
-//  Data: n bytes
+//
+//	Transaction identifier: 2 bytes
+//	Protocol identifier: 2 bytes
+//	Length: 2 bytes
+//	Unit identifier: 1 byte
+//	Function code: 1 byte
+//	Data: n bytes
 func (mb *tcpPackager) Encode(pdu *ProtocolDataUnit) (adu []byte, err error) {
 	adu = make([]byte, tcpHeaderSize+1+len(pdu.Data))
 
@@ -117,10 +139,11 @@ func (mb *tcpPackager) Verify(aduRequest []byte, aduResponse []byte) (err error)
 }
 
 // Decode extracts PDU from TCP frame:
-//  Transaction identifier: 2 bytes
-//  Protocol identifier: 2 bytes
-//  Length: 2 bytes
-//  Unit identifier: 1 byte
+//
+//	Transaction identifier: 2 bytes
+//	Protocol identifier: 2 bytes
+//	Length: 2 bytes
+//	Unit identifier: 1 byte
 func (mb *tcpPackager) Decode(adu []byte) (pdu *ProtocolDataUnit, err error) {
 	// Read length value in the header
 	length := binary.BigEndian.Uint16(adu[4:])
@@ -146,6 +169,11 @@ type tcpTransporter struct {
 	IdleTimeout time.Duration
 	// Transmission logger
 	Logger *log.Logger
+	// TLS configuration. When non-nil, the connection is established over TLS
+	// (tls.DialWithDialer) instead of plain TCP. The *tls.Conn returned
+	// satisfies the net.Conn interface used by Send/flush/Close, so no other
+	// methods need to be TLS-aware.
+	TLS *TlsConfig
 
 	// TCP connection
 	mu           sync.Mutex
@@ -222,11 +250,23 @@ func (mb *tcpTransporter) Connect() error {
 func (mb *tcpTransporter) connect() error {
 	if mb.conn == nil {
 		dialer := net.Dialer{Timeout: mb.Timeout}
-		conn, err := dialer.Dial("tcp", mb.Address)
-		if err != nil {
-			return err
+		if mb.TLS != nil {
+			tlsCfg, err := newTLSConfig(mb.TLS)
+			if err != nil {
+				return err
+			}
+			conn, err := tls.DialWithDialer(&dialer, "tcp", mb.Address, tlsCfg)
+			if err != nil {
+				return err
+			}
+			mb.conn = conn
+		} else {
+			conn, err := dialer.Dial("tcp", mb.Address)
+			if err != nil {
+				return err
+			}
+			mb.conn = conn
 		}
-		mb.conn = conn
 	}
 	return nil
 }

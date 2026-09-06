@@ -38,6 +38,26 @@ func RTUTCPClient(address string) Client {
 	return NewClient(handler)
 }
 
+// NewRTUTlsClientHandler allocates and initializes a RTUTCPClientHandler
+// configured to dial over TLS using the supplied TlsConfig. It reuses the
+// RTUTCPClientHandler type (and therefore the embedded tcpTransporter's TLS
+// path) and only sets the TLS field.
+func NewRTUTlsClientHandler(address string, tlsConfig *TlsConfig) *RTUTCPClientHandler {
+	handler := &RTUTCPClientHandler{}
+	handler.Address = address
+	handler.Timeout = tcpTimeout
+	handler.IdleTimeout = tcpIdleTimeout
+	handler.TLS = tlsConfig
+	return handler
+}
+
+// RTUTlsClient creates a TLS-wrapped RTU-over-TCP client with the default
+// handler and the given connect string plus TLS configuration.
+func RTUTlsClient(address string, tlsConfig *TlsConfig) Client {
+	handler := NewRTUTlsClientHandler(address, tlsConfig)
+	return NewClient(handler)
+}
+
 // rtuTCPTransporter implements the Transporter interface for raw RTU frames
 // over TCP. It embeds tcpTransporter to reuse connection management
 // (connect/close/idle timer/flush/logging) and overrides Send to read
